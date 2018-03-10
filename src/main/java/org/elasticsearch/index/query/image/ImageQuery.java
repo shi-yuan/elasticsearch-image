@@ -1,74 +1,62 @@
 package org.elasticsearch.index.query.image;
 
 import net.semanticmetadata.lire.imageanalysis.LireFeature;
-import org.apache.lucene.index.AtomicReaderContext;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.*;
-import org.apache.lucene.util.Bits;
-import org.apache.lucene.util.ToStringUtils;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
-
 
 /**
  * Copied from {@link MatchAllDocsQuery}, calculate score for all docs
  */
 public class ImageQuery extends Query {
 
+    private float boost;
     private String luceneFieldName;
     private LireFeature lireFeature;
 
     public ImageQuery(String luceneFieldName, LireFeature lireFeature, float boost) {
         this.luceneFieldName = luceneFieldName;
         this.lireFeature = lireFeature;
-        setBoost(boost);
+        this.boost = boost;
     }
 
     private class ImageScorer extends AbstractImageScorer {
-        private int doc = -1;
-        private final int maxDoc;
-        private final Bits liveDocs;
 
-        ImageScorer(IndexReader reader, Bits liveDocs, Weight w) {
-            super(w, luceneFieldName, lireFeature, reader, ImageQuery.this.getBoost());
-            this.liveDocs = liveDocs;
-            maxDoc = reader.maxDoc();
+        private final TwoPhaseIterator twoPhaseIterator;
+        private final DocIdSetIterator disi;
+
+        public ImageScorer(IndexReader reader, Weight w, DocIdSetIterator disi) {
+            super(w, luceneFieldName, lireFeature, reader, boost);
+            this.twoPhaseIterator = null;
+            this.disi = disi;
+        }
+
+        @Override
+        public DocIdSetIterator iterator() {
+            return disi;
+        }
+
+        @Override
+        public TwoPhaseIterator twoPhaseIterator() {
+            return twoPhaseIterator;
         }
 
         @Override
         public int docID() {
-            return doc;
-        }
-
-        @Override
-        public int nextDoc() throws IOException {
-            doc++;
-            while(liveDocs != null && doc < maxDoc && !liveDocs.get(doc)) {
-                doc++;
-            }
-            if (doc == maxDoc) {
-                doc = NO_MORE_DOCS;
-            }
-            return doc;
-        }
-
-
-        @Override
-        public int advance(int target) throws IOException {
-            doc = target-1;
-            return nextDoc();
-        }
-
-        @Override
-        public long cost() {
-            return maxDoc;
+            return disi.docID();
         }
     }
 
     private class ImageWeight extends Weight {
-        public ImageWeight(IndexSearcher searcher) {
+
+        protected ImageWeight(Query query) {
+            super(query);
         }
 
         @Override
@@ -77,13 +65,8 @@ public class ImageQuery extends Query {
         }
 
         @Override
-        public Query getQuery() {
-            return ImageQuery.this;
-        }
-
-        @Override
         public float getValueForNormalization() {
-            return 1f;
+            return 1.0f;
         }
 
         @Override
@@ -91,62 +74,67 @@ public class ImageQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(AtomicReaderContext context, Bits acceptDocs) throws IOException {
-            return new ImageScorer(context.reader(), acceptDocs, this);
+        public ImageScorer scorer(LeafReaderContext context) throws IOException {
+            return new ImageScorer(context.reader(), this, DocIdSetIterator.all(context.reader().maxDoc()));
         }
 
         @Override
-        public Explanation explain(AtomicReaderContext context, int doc) throws IOException {
-            Scorer scorer = scorer(context, context.reader().getLiveDocs());
-            if (scorer != null) {
-                int newDoc = scorer.advance(doc);
-                if (newDoc == doc) {
-                    float score = scorer.score();
-                    ComplexExplanation result = new ComplexExplanation();
-                    result.setDescription("ImageQuery, product of:");
-                    result.setValue(score);
-                    if (getBoost() != 1.0f) {
-                        result.addDetail(new Explanation(getBoost(),"boost"));
-                        score = score / getBoost();
-                    }
-                    result.addDetail(new Explanation(score ,"image score (1/distance)"));
-                    result.setMatch(true);
-                    return result;
+        public Explanation explain(LeafReaderContext context, int doc) throws IOException {
+            final Scorer s = scorer(context);
+            final boolean exists;
+            if (s == null) {
+                exists = false;
+            } else {
+                final TwoPhaseIterator twoPhase = s.twoPhaseIterator();
+                if (twoPhase == null) {
+                    exists = s.iterator().advance(doc) == doc;
+                } else {
+                    exists = twoPhase.approximation().advance(doc) == doc && twoPhase.matches();
                 }
             }
 
-            return new ComplexExplanation(false, 0.0f, "no matching term");
+            if (exists) {
+                float score = s.score();
+                List<Explanation> details = new ArrayList<>();
+                if (boost != 1.0f) {
+                    details.add(Explanation.match(boost, "boost"));
+                    score = score / boost;
+                }
+                details.add(Explanation.match(score, "image score (1/distance)"));
+                return Explanation.match(score, ImageQuery.this.toString() + ", product of:", details);
+            } else {
+                return Explanation.noMatch(ImageQuery.this.toString() + " doesn't match id " + doc);
+            }
+        }
+
+        @Override
+        public void extractTerms(Set<Term> terms) {
+
         }
     }
 
     @Override
-    public Weight createWeight(IndexSearcher searcher) {
-        return new ImageWeight(searcher);
-    }
-
-    @Override
-    public void extractTerms(Set<Term> terms) {
+    public Weight createWeight(IndexSearcher searcher, boolean needsScores) {
+        return new ImageWeight(this);
     }
 
     @Override
     public String toString(String field) {
-        StringBuilder buffer = new StringBuilder();
-        buffer.append(luceneFieldName);
-        buffer.append(",");
-        buffer.append(lireFeature.getClass().getSimpleName());
-        buffer.append(ToStringUtils.boost(getBoost()));
-        return buffer.toString();
+        return luceneFieldName +
+                "," +
+                lireFeature.getClass().getSimpleName() +
+                (boost != 1.0f ? "^" + Float.toString(boost) : "");
     }
-
 
     @Override
     public boolean equals(Object o) {
-        if (!(o instanceof ImageQuery))
+        if (!(o instanceof ImageQuery)) {
             return false;
+        }
         ImageQuery other = (ImageQuery) o;
-        return (this.getBoost() == other.getBoost())
-                && luceneFieldName.equals(luceneFieldName)
-                && lireFeature.equals(lireFeature);
+        return (this.boost == other.boost)
+                && luceneFieldName.equals(other.luceneFieldName)
+                && lireFeature.equals(other.lireFeature);
     }
 
     @Override
@@ -154,9 +142,7 @@ public class ImageQuery extends Query {
         int result = super.hashCode();
         result = 31 * result + luceneFieldName.hashCode();
         result = 31 * result + lireFeature.hashCode();
-        result = Float.floatToIntBits(getBoost()) ^ result;
+        result = Float.floatToIntBits(boost) ^ result;
         return result;
     }
-
-
 }

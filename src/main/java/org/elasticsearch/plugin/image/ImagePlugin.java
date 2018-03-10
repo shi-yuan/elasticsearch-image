@@ -1,14 +1,12 @@
 package org.elasticsearch.plugin.image;
 
-import org.elasticsearch.common.inject.Module;
-import org.elasticsearch.plugins.AbstractPlugin;
+import org.elasticsearch.index.mapper.image.ImageMapper;
+import org.elasticsearch.index.query.image.ImageQueryParser;
+import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.threadpool.ThreadPool;
 
-import java.util.Collection;
-
-import static org.elasticsearch.common.collect.Lists.newArrayList;
-
-
-public class ImagePlugin extends AbstractPlugin {
+public class ImagePlugin extends Plugin {
 
     @Override
     public String name() {
@@ -20,10 +18,8 @@ public class ImagePlugin extends AbstractPlugin {
         return "Elasticsearch Image Plugin";
     }
 
-    @Override
-    public Collection<Class<? extends Module>> indexModules() {
-        Collection<Class<? extends Module>> modules = newArrayList();
-        modules.add(ImageIndexModule.class);
-        return modules;
+    public void onModule(IndicesModule indicesModule) {
+        indicesModule.registerQueryParser(ImageQueryParser.class);
+        indicesModule.registerMapper("image", new ImageMapper.TypeParser(new ThreadPool("elasticsearch-image")));
     }
 }

@@ -2,12 +2,12 @@ package org.elasticsearch.index.query.image;
 
 
 import org.elasticsearch.common.xcontent.XContentBuilder;
-import org.elasticsearch.index.query.BaseQueryBuilder;
 import org.elasticsearch.index.query.BoostableQueryBuilder;
+import org.elasticsearch.index.query.QueryBuilder;
 
 import java.io.IOException;
 
-public class ImageQueryBuilder extends BaseQueryBuilder implements BoostableQueryBuilder<ImageQueryBuilder> {
+public class ImageQueryBuilder extends QueryBuilder implements BoostableQueryBuilder<ImageQueryBuilder> {
 
     private final String fieldName;
 
@@ -101,12 +101,22 @@ public class ImageQueryBuilder extends BaseQueryBuilder implements BoostableQuer
         if (lookupIndex != null) {
             builder.field("index", lookupIndex);
         }
-        builder.field("type", lookupType);
-        builder.field("id", lookupId);
+
+        if (lookupType != null) {
+            builder.field("type", lookupType);
+        }
+
+        if (lookupId != null) {
+            builder.field("id", lookupId);
+        }
+
         if (lookupRouting != null) {
             builder.field("routing", lookupRouting);
         }
-        builder.field("path", lookupPath);
+
+        if (lookupPath != null) {
+            builder.field("path", lookupPath);
+        }
 
         if (hash != null) {
             builder.field("hash", hash);
@@ -124,6 +134,4 @@ public class ImageQueryBuilder extends BaseQueryBuilder implements BoostableQuer
 
         builder.endObject();
     }
-
-
 }

@@ -27,8 +27,7 @@ public enum FeatureEnum {
     PHOG(PHOG.class),
     ROTATION_INVARIANT_LOCAL_BINARY_PATTERNS(RotationInvariantLocalBinaryPatterns.class),
     SCALABLE_COLOR(ScalableColor.class),
-    TAMURA(Tamura.class),
-    ;
+    TAMURA(Tamura.class);
 
     private Class<? extends LireFeature> featureClass;
 

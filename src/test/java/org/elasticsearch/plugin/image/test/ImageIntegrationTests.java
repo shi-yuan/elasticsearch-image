@@ -1,12 +1,11 @@
 package org.elasticsearch.plugin.image.test;
 
+import com.carrotsearch.randomizedtesting.annotations.ThreadLeakScope;
 import org.apache.sanselan.ImageFormat;
 import org.apache.sanselan.ImageWriteException;
 import org.apache.sanselan.Sanselan;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.common.collect.Maps;
-import org.elasticsearch.common.settings.ImmutableSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.image.FeatureEnum;
 import org.elasticsearch.index.mapper.image.HashEnum;
@@ -14,25 +13,28 @@ import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.query.image.ImageQueryBuilder;
-import org.elasticsearch.plugins.PluginsService;
+import org.elasticsearch.plugin.image.ImagePlugin;
+import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
-import org.elasticsearch.test.ElasticsearchIntegrationTest;
+import org.elasticsearch.test.ESIntegTestCase;
 import org.junit.Before;
 import org.junit.Test;
 
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.util.Collection;
+import java.util.HashMap;
 
 import static org.elasticsearch.client.Requests.putMappingRequest;
-import static org.elasticsearch.common.io.Streams.copyToStringFromClasspath;
-import static org.elasticsearch.common.settings.ImmutableSettings.settingsBuilder;
 import static org.elasticsearch.common.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.test.StreamsUtils.copyToStringFromClasspath;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.*;
 
-@ElasticsearchIntegrationTest.ClusterScope(scope = ElasticsearchIntegrationTest.Scope.SUITE)
-public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
+@ThreadLeakScope(ThreadLeakScope.Scope.NONE)
+@ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 1)
+public class ImageIntegrationTests extends ESIntegTestCase {
 
     private final static String INDEX_NAME = "test";
     private final static String DOC_TYPE_NAME = "test";
@@ -40,10 +42,14 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
     protected Settings nodeSettings(int nodeOrdinal) {
-        return ImmutableSettings.builder()
+        return Settings.builder()
                 .put(super.nodeSettings(nodeOrdinal))
-                .put("plugins." + PluginsService.LOAD_PLUGIN_FROM_CLASSPATH, true)
                 .build();
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return pluginList(ImagePlugin.class);
     }
 
     @Before
@@ -55,11 +61,11 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
 
     @Override
     public Settings indexSettings() {
-        return settingsBuilder()
+        return Settings.builder()
                 .put("index.number_of_replicas", 0)
                 .put("index.number_of_shards", 5)
                 .put("index.image.use_thread_pool", randomBoolean())
-            .build();
+                .build();
     }
 
     @Test
@@ -73,7 +79,7 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
         String nameToSearch = null;
         byte[] imgToSearch = null;
         String idToSearch = null;
-        for (int i = 0; i < totalImages; i ++) {
+        for (int i = 0; i < totalImages; i++) {
             byte[] imageByte = getRandomImage();
             String name = randomAsciiOfLength(5);
             IndexResponse response = index(INDEX_NAME, DOC_TYPE_NAME, jsonBuilder().startObject().field("img", imageByte).field("name", name).endObject());
@@ -84,14 +90,15 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
             }
         }
 
-        refresh();
+        waitForRelocation();
+        client().admin().indices().prepareRefresh(INDEX_NAME).get();
 
         // test search with hash
         ImageQueryBuilder imageQueryBuilder = new ImageQueryBuilder("img").feature(FeatureEnum.CEDD.name()).image(imgToSearch).hash(HashEnum.BIT_SAMPLING.name());
         SearchResponse searchResponse = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE_NAME).setQuery(imageQueryBuilder).addFields("img.metadata.exif_ifd0.x_resolution", "name").setSize(totalImages).get();
         assertNoFailures(searchResponse);
         SearchHits hits = searchResponse.getHits();
-        assertThat("Should match at least one image", hits.getTotalHits(), greaterThanOrEqualTo(1l)); // if using hash, total result maybe different than number of images
+        assertThat("Should match at least one image", hits.getTotalHits(), greaterThanOrEqualTo(1L)); // if using hash, total result maybe different than number of images
         SearchHit hit = hits.getHits()[0];
         assertThat("First should be exact match and has score 1", hit.getScore(), equalTo(2.0f));
         assertImageScore(hits, nameToSearch, 2.0f);
@@ -102,7 +109,7 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse2 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE_NAME).setQuery(imageQueryBuilder2).setSize(totalImages).get();
         assertNoFailures(searchResponse2);
         SearchHits hits2 = searchResponse2.getHits();
-        assertThat("Should get all images", hits2.getTotalHits(), equalTo((long)totalImages));  // no hash used, total result should be same as number of images
+        assertThat("Should get all images", hits2.getTotalHits(), equalTo((long) totalImages));  // no hash used, total result should be same as number of images
         assertThat("First should be exact match and has score 2", searchResponse2.getHits().getMaxScore(), equalTo(4.0f));
         assertImageScore(hits2, nameToSearch, 4.0f);
 
@@ -113,16 +120,16 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse3 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE_NAME).setQuery(boolQueryBuilder).setSize(totalImages).get();
         assertNoFailures(searchResponse3);
         SearchHits hits3 = searchResponse3.getHits();
-        assertThat("Should match one document only", hits3.getTotalHits(), equalTo(1l)); // added filename to query, should have only one result
+        assertThat("Should match one document only", hits3.getTotalHits(), equalTo(1L)); // added filename to query, should have only one result
         SearchHit hit3 = hits3.getHits()[0];
-        assertThat((String)hit3.getSource().get("name"), equalTo(nameToSearch));
+        assertThat((String) hit3.getSource().get("name"), equalTo(nameToSearch));
 
         // test search with hash and limit
         ImageQueryBuilder imageQueryBuilder4 = new ImageQueryBuilder("img").feature(FeatureEnum.CEDD.name()).image(imgToSearch).hash(HashEnum.BIT_SAMPLING.name()).limit(10);
         SearchResponse searchResponse4 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE_NAME).setQuery(imageQueryBuilder4).setSize(totalImages).get();
         assertNoFailures(searchResponse4);
         SearchHits hits4 = searchResponse4.getHits();
-        assertThat("Should match at least one image", hits4.getTotalHits(), greaterThanOrEqualTo(1l)); // if using hash, total result maybe different than number of images
+        assertThat("Should match at least one image", hits4.getTotalHits(), greaterThanOrEqualTo(1L)); // if using hash, total result maybe different than number of images
         SearchHit hit4 = hits4.getHits()[0];
         assertThat("First should be exact match and has score 1", hit4.getScore(), equalTo(2.0f));
         assertImageScore(hits4, nameToSearch, 2.0f);
@@ -132,7 +139,7 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
         SearchResponse searchResponse5 = client().prepareSearch(INDEX_NAME).setTypes(DOC_TYPE_NAME).setQuery(termQueryBuilder).setSize(totalImages).get();
         assertNoFailures(searchResponse5);
         SearchHits hits5 = searchResponse5.getHits();
-        assertThat("Should match at least one record", hits5.getTotalHits(), greaterThanOrEqualTo(1l)); // if using hash, total result maybe different than number of images
+        assertThat("Should match at least one record", hits5.getTotalHits(), greaterThanOrEqualTo(1L)); // if using hash, total result maybe different than number of images
 
         // test search with exist image
         ImageQueryBuilder imageQueryBuilder6 = new ImageQueryBuilder("img").feature(FeatureEnum.CEDD.name()).lookupIndex(INDEX_NAME).lookupType(DOC_TYPE_NAME).lookupId(idToSearch).lookupPath("img");
@@ -158,7 +165,7 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
     private void assertImageScore(SearchHits hits, String name, float score) {
         for (SearchHit hit : hits) {
             if ((hit.getSource() != null && hit.getSource().get("name").equals(name))
-                    || (hit.getFields() != null && !hit.getFields().isEmpty() && hit.getFields().get("name").getValue().equals(name))){
+                    || (hit.getFields() != null && !hit.getFields().isEmpty() && hit.getFields().get("name").getValue().equals(name))) {
                 assertThat(hit.getScore(), equalTo(score));
                 return;
             }
@@ -170,13 +177,12 @@ public class ImageIntegrationTests extends ElasticsearchIntegrationTest {
         int width = randomIntBetween(100, 1000);
         int height = randomIntBetween(100, 1000);
         BufferedImage image = new BufferedImage(width, height, BufferedImage.TYPE_INT_RGB);
-        for (int j = 0; j < width; j ++) {
-            for (int k = 0; k < height; k ++) {
+        for (int j = 0; j < width; j++) {
+            for (int k = 0; k < height; k++) {
                 image.setRGB(j, k, randomInt(512));
             }
         }
         ImageFormat format = ImageFormat.IMAGE_FORMAT_TIFF;
-        byte[] bytes = Sanselan.writeImageToBytes(image, format, Maps.newHashMap());
-        return bytes;
+        return Sanselan.writeImageToBytes(image, format, new HashMap());
     }
 }

@@ -1,15 +1,17 @@
 package org.elasticsearch.index.query.image;
 
 import net.semanticmetadata.lire.imageanalysis.LireFeature;
-import org.apache.lucene.index.AtomicReader;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchImageProcessException;
 
 import java.io.IOException;
+
+import static org.apache.lucene.search.DocIdSetIterator.NO_MORE_DOCS;
 
 /**
  * Calculate score for each image
@@ -36,7 +38,7 @@ public abstract class AbstractImageScorer extends Scorer {
         assert docID() != NO_MORE_DOCS;
 
         if (binaryDocValues == null) {
-            AtomicReader atomicReader = (AtomicReader) reader;
+            LeafReader atomicReader = (LeafReader) reader;
             binaryDocValues = atomicReader.getBinaryDocValues(luceneFieldName);
         }
 

@@ -1,14 +1,13 @@
 package org.elasticsearch.index.query.image;
 
-import org.elasticsearch.common.collect.MapMaker;
-
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Cache document score for {@link org.elasticsearch.index.query.image.ImageHashQuery}
  */
 public class ImageScoreCache {
-    private Map<String, Float> scoreCache = new MapMaker().makeMap();
+    private Map<String, Float> scoreCache = new ConcurrentHashMap<>();
 
     public Float getScore(String key) {
         if (!scoreCache.containsKey(key)) {

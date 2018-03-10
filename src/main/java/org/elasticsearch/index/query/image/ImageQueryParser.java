@@ -9,13 +9,17 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.Query;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchImageProcessException;
+import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.client.Client;
+import org.elasticsearch.common.Base64;
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.inject.Inject;
-import org.elasticsearch.common.io.stream.BytesStreamInput;
+import org.elasticsearch.common.io.stream.ByteBufferStreamInput;
 import org.elasticsearch.common.xcontent.XContentParser;
 import org.elasticsearch.index.get.GetField;
 import org.elasticsearch.index.mapper.image.FeatureEnum;
@@ -28,6 +32,8 @@ import org.elasticsearch.index.query.QueryParsingException;
 import javax.imageio.ImageIO;
 import java.awt.image.BufferedImage;
 import java.io.IOException;
+import java.io.InputStream;
+import java.nio.ByteBuffer;
 
 public class ImageQueryParser implements QueryParser {
 
@@ -42,7 +48,7 @@ public class ImageQueryParser implements QueryParser {
 
     @Override
     public String[] names() {
-        return new String[] {NAME};
+        return new String[]{NAME};
     }
 
     @Override
@@ -51,7 +57,7 @@ public class ImageQueryParser implements QueryParser {
 
         XContentParser.Token token = parser.nextToken();
         if (token != XContentParser.Token.FIELD_NAME) {
-            throw new QueryParsingException(parseContext.index(), "[image] query malformed, no field");
+            throw new QueryParsingException(parseContext, "[image] query malformed, no field");
         }
 
 
@@ -86,7 +92,7 @@ public class ImageQueryParser implements QueryParser {
                         boost = parser.floatValue();
                     } else if ("limit".equals(currentFieldName)) {
                         limit = parser.intValue();
-                    }else if ("index".equals(currentFieldName)) {
+                    } else if ("index".equals(currentFieldName)) {
                         lookupIndex = parser.text();
                     } else if ("type".equals(currentFieldName)) {
                         lookupType = parser.text();
@@ -97,7 +103,7 @@ public class ImageQueryParser implements QueryParser {
                     } else if ("routing".equals(currentFieldName)) {
                         lookupRouting = parser.textOrNull();
                     } else {
-                        throw new QueryParsingException(parseContext.index(), "[image] query does not support [" + currentFieldName + "]");
+                        throw new QueryParsingException(parseContext, "[image] query does not support [" + currentFieldName + "]");
                     }
                 }
             }
@@ -105,16 +111,16 @@ public class ImageQueryParser implements QueryParser {
         }
 
         if (featureEnum == null) {
-            throw new QueryParsingException(parseContext.index(), "No feature specified for image query");
+            throw new QueryParsingException(parseContext, "No feature specified for image query");
         }
 
         String luceneFieldName = fieldName + "." + featureEnum.name();
         LireFeature feature = null;
 
         if (image != null) {
-            try {
+            try (InputStream is = new ByteBufferStreamInput(ByteBuffer.wrap(image))) {
                 feature = featureEnum.getFeatureClass().newInstance();
-                BufferedImage img = ImageIO.read(new BytesStreamInput(image, false));
+                BufferedImage img = ImageIO.read(is);
                 if (Math.max(img.getHeight(), img.getWidth()) > ImageMapper.MAX_IMAGE_DIMENSION) {
                     img = ImageUtils.scaleImage(img, ImageMapper.MAX_IMAGE_DIMENSION);
                 }
@@ -128,7 +134,22 @@ public class ImageQueryParser implements QueryParser {
             if (getResponse.isExists()) {
                 GetField getField = getResponse.getField(lookupFieldName);
                 if (getField != null) {
-                    BytesReference bytesReference = (BytesReference) getField.getValue();
+                    BytesReference bytesReference;
+                    Object value = getField.getValue();
+                    if (value instanceof BytesRef) {
+                        bytesReference = new BytesArray((BytesRef) value);
+                    } else if (value instanceof BytesReference) {
+                        bytesReference = (BytesReference) value;
+                    } else if (value instanceof byte[]) {
+                        bytesReference = new BytesArray((byte[]) value);
+                    } else {
+                        try {
+                            bytesReference = new BytesArray(Base64.decode(value.toString()));
+                        } catch (IOException e) {
+                            throw new ElasticsearchParseException("failed to convert bytes", e);
+                        }
+                    }
+
                     try {
                         feature = featureEnum.getFeatureClass().newInstance();
                         feature.setByteArrayRepresentation(bytesReference.array(), bytesReference.arrayOffset(), bytesReference.length());
@@ -139,7 +160,7 @@ public class ImageQueryParser implements QueryParser {
             }
         }
         if (feature == null) {
-            throw new QueryParsingException(parseContext.index(), "No image specified for image query");
+            throw new QueryParsingException(parseContext, "No image specified for image query");
         }
 
 
@@ -157,13 +178,13 @@ public class ImageQueryParser implements QueryParser {
             if (limit > 0) {  // has max result limit, use ImageHashLimitQuery
                 return new ImageHashLimitQuery(hashFieldName, hash, limit, luceneFieldName, feature, boost);
             } else {  // no max result limit, use ImageHashQuery
-                BooleanQuery query = new BooleanQuery(true);
+                BooleanQuery.Builder builder = new BooleanQuery.Builder().setDisableCoord(true);
                 ImageScoreCache imageScoreCache = new ImageScoreCache();
 
                 for (int h : hash) {
-                    query.add(new BooleanClause(new ImageHashQuery(new Term(hashFieldName, Integer.toString(h)), luceneFieldName, feature, imageScoreCache, boost), BooleanClause.Occur.SHOULD));
+                    builder.add(new BooleanClause(new ImageHashQuery(new Term(hashFieldName, Integer.toString(h)), luceneFieldName, feature, imageScoreCache, boost), BooleanClause.Occur.SHOULD));
                 }
-                return query;
+                return builder.build();
             }
 
         }
