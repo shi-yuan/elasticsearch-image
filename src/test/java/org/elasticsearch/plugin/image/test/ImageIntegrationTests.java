@@ -90,8 +90,7 @@ public class ImageIntegrationTests extends ESIntegTestCase {
             }
         }
 
-        waitForRelocation();
-        client().admin().indices().prepareRefresh(INDEX_NAME).get();
+        refresh();
 
         // test search with hash
         ImageQueryBuilder imageQueryBuilder = new ImageQueryBuilder("img").feature(FeatureEnum.CEDD.name()).image(imgToSearch).hash(HashEnum.BIT_SAMPLING.name());

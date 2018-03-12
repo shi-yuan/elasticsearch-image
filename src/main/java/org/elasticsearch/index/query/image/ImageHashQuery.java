@@ -81,7 +81,7 @@ public class ImageHashQuery extends Query {
         }
 
         @Override
-        public ImageHashScorer scorer(LeafReaderContext context) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
             assert termStates.topReaderContext == ReaderUtil.getTopLevelContext(context) : "The top-reader used to create Weight (" + termStates.topReaderContext + ") is not the same as the current reader's top-reader (" + ReaderUtil.getTopLevelContext(context);
             final TermsEnum termsEnum = getTermsEnum(context);
             if (termsEnum == null) {

@@ -87,13 +87,13 @@ public class ImageMapper extends FieldMapper {
         public ImageFieldType() {
         }
 
-        protected ImageFieldType(ImageMapper.ImageFieldType ref) {
+        protected ImageFieldType(ImageFieldType ref) {
             super(ref);
         }
 
         @Override
-        public ImageMapper.ImageFieldType clone() {
-            return new ImageMapper.ImageFieldType(this);
+        public ImageFieldType clone() {
+            return new ImageFieldType(this);
         }
 
         @Override
@@ -118,7 +118,7 @@ public class ImageMapper extends FieldMapper {
         private Map<String, FieldMapper.Builder> metadataBuilders = new HashMap<>();
 
         public Builder(String name, ThreadPool threadPool) {
-            super(name, Defaults.FIELD_TYPE, Defaults.FIELD_TYPE);
+            super(name, new ImageFieldType(), new ImageFieldType());
             this.threadPool = threadPool;
             this.builder = this;
         }
@@ -175,9 +175,20 @@ public class ImageMapper extends FieldMapper {
             context.path().pathType(origPathType);
 
             MappedFieldType defaultFieldType = Defaults.FIELD_TYPE.clone();
+            if (this.fieldType.indexOptions() != IndexOptions.NONE && !this.fieldType.tokenized()) {
+                defaultFieldType.setOmitNorms(true);
+                defaultFieldType.setIndexOptions(IndexOptions.DOCS);
+                if (!this.omitNormsSet && this.fieldType.boost() == 1.0F) {
+                    this.fieldType.setOmitNorms(true);
+                }
 
-            fieldType.setNames(new MappedFieldType.Names(name));
+                if (!this.indexOptionsSet) {
+                    this.fieldType.setIndexOptions(IndexOptions.DOCS);
+                }
+            }
 
+            defaultFieldType.freeze();
+            this.setupFieldType(context);
             return new ImageMapper(name, threadPool, context.indexSettings(), features, featureMappers, hashMappers, metadataMappers,
                     fieldType, defaultFieldType, multiFieldsBuilder.build(this, context), copyTo);
         }
@@ -192,7 +203,7 @@ public class ImageMapper extends FieldMapper {
 
         @SuppressWarnings({"unchecked"})
         @Override
-        public Mapper.Builder<Builder, ImageMapper> parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
+        public Mapper.Builder parse(String name, Map<String, Object> node, ParserContext parserContext) throws MapperParsingException {
             ImageMapper.Builder builder = new ImageMapper.Builder(name, threadPool);
             Map<String, Object> features = new HashMap<>();
             Map<String, Object> metadatas = new HashMap<>();
@@ -435,6 +446,7 @@ public class ImageMapper extends FieldMapper {
     }
 
     @Override
+    @SuppressWarnings("unchecked")
     public Iterator<Mapper> iterator() {
         return CollectionUtils.concat(super.iterator(), featureMappers.valuesIt(), hashMappers.valuesIt(), metadataMappers.valuesIt());
     }
@@ -446,7 +458,7 @@ public class ImageMapper extends FieldMapper {
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(name());
+        builder.startObject(simpleName());
 
         builder.field("type", CONTENT_TYPE);
 

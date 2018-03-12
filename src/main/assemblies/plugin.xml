@@ -4,6 +4,16 @@
     <formats>
         <format>zip</format>
     </formats>
+    <files>
+        <file>
+            <source>${project.basedir}/src/main/resources/plugin-descriptor.properties</source>
+            <filtered>true</filtered>
+        </file>
+        <file>
+            <source>${project.basedir}/src/main/plugin-metadata/plugin-security.policy</source>
+            <filtered>true</filtered>
+        </file>
+    </files>
     <includeBaseDirectory>false</includeBaseDirectory>
     <dependencySets>
         <dependencySet>

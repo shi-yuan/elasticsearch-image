@@ -115,7 +115,7 @@ public class ImageHashLimitQuery extends Query {
         }
 
         @Override
-        public ImageHashScorer scorer(LeafReaderContext context) {
+        public Scorer scorer(LeafReaderContext context) {
             return new ImageHashScorer(this, bitSet, context, context.reader().getLiveDocs());
         }
 

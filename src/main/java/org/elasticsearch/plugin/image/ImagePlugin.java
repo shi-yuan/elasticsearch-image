@@ -20,6 +20,6 @@ public class ImagePlugin extends Plugin {
 
     public void onModule(IndicesModule indicesModule) {
         indicesModule.registerQueryParser(ImageQueryParser.class);
-        indicesModule.registerMapper("image", new ImageMapper.TypeParser(new ThreadPool("elasticsearch-image")));
+        indicesModule.registerMapper(ImageMapper.CONTENT_TYPE, new ImageMapper.TypeParser(new ThreadPool("elasticsearch-image")));
     }
 }

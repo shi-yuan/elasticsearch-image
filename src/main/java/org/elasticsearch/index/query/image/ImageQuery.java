@@ -74,7 +74,7 @@ public class ImageQuery extends Query {
         }
 
         @Override
-        public ImageScorer scorer(LeafReaderContext context) throws IOException {
+        public Scorer scorer(LeafReaderContext context) throws IOException {
             return new ImageScorer(context.reader(), this, DocIdSetIterator.all(context.reader().maxDoc()));
         }
 
