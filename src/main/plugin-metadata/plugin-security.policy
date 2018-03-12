@@ -18,5 +18,5 @@
  */
 
 grant {
-  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.imageio.plugins.tiff";
+  permission java.lang.RuntimePermission "accessClassInPackage.com.sun.imageio.plugins.*";
 };
