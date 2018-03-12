@@ -13,7 +13,7 @@ In order to install the plugin, simply run: `bin/plugin -install com.github.shi-
 |     Image Plugin          |  elasticsearch    | Release date |
 |---------------------------|-------------------|:------------:|
 | 2.3.1.0 (master)          | 2.3.1             | 2018-03-12   |
-| 1.3.0-SNAPSHOT (master)   | 1.1.0             |              |
+| 1.3.0-SNAPSHOT            | 1.1.0             |              |
 | 1.2.0                     | 1.0.1             | 2014-03-20   |
 | 1.1.0                     | 1.0.1             | 2014-03-13   |
 | 1.0.0                     | 1.0.1             | 2014-03-05   |
