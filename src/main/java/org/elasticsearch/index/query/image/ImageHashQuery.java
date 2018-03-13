@@ -1,6 +1,6 @@
 package org.elasticsearch.index.query.image;
 
-import net.semanticmetadata.lire.imageanalysis.LireFeature;
+import net.semanticmetadata.lire.imageanalysis.features.LireFeature;
 import org.apache.lucene.index.*;
 import org.apache.lucene.search.*;
 

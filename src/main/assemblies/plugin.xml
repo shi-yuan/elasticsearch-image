@@ -4,6 +4,12 @@
     <formats>
         <format>zip</format>
     </formats>
+    <fileSets>
+        <fileSet>
+            <directory>${project.basedir}/lib</directory>
+            <outputDirectory>/</outputDirectory>
+        </fileSet>
+    </fileSets>
     <files>
         <file>
             <source>${project.basedir}/src/main/resources/plugin-descriptor.properties</source>

@@ -1,8 +1,8 @@
 package org.elasticsearch.index.mapper.image;
 
-
-import net.semanticmetadata.lire.imageanalysis.*;
-import net.semanticmetadata.lire.imageanalysis.joint.JointHistogram;
+import net.semanticmetadata.lire.imageanalysis.features.LireFeature;
+import net.semanticmetadata.lire.imageanalysis.features.global.*;
+import net.semanticmetadata.lire.imageanalysis.features.global.joint.JointHistogram;
 
 /**
  * Features supported by LIRE

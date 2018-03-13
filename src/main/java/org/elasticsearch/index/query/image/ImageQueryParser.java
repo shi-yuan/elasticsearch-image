@@ -1,9 +1,9 @@
 package org.elasticsearch.index.query.image;
 
-
-import net.semanticmetadata.lire.imageanalysis.LireFeature;
-import net.semanticmetadata.lire.indexing.hashing.BitSampling;
-import net.semanticmetadata.lire.indexing.hashing.LocalitySensitiveHashing;
+import net.semanticmetadata.lire.imageanalysis.features.Extractor;
+import net.semanticmetadata.lire.imageanalysis.features.LireFeature;
+import net.semanticmetadata.lire.indexers.hashing.BitSampling;
+import net.semanticmetadata.lire.indexers.hashing.LocalitySensitiveHashing;
 import net.semanticmetadata.lire.utils.ImageUtils;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.BooleanClause;
@@ -124,7 +124,7 @@ public class ImageQueryParser implements QueryParser {
                 if (Math.max(img.getHeight(), img.getWidth()) > ImageMapper.MAX_IMAGE_DIMENSION) {
                     img = ImageUtils.scaleImage(img, ImageMapper.MAX_IMAGE_DIMENSION);
                 }
-                feature.extract(img);
+                ((Extractor) feature).extract(img);
             } catch (Exception e) {
                 throw new ElasticsearchImageProcessException("Failed to parse image", e);
             }
@@ -169,9 +169,9 @@ public class ImageQueryParser implements QueryParser {
         } else {  // query by hash first
             int[] hash = null;
             if (hashEnum.equals(HashEnum.BIT_SAMPLING)) {
-                hash = BitSampling.generateHashes(feature.getDoubleHistogram());
+                hash = BitSampling.generateHashes(feature.getFeatureVector());
             } else if (hashEnum.equals(HashEnum.LSH)) {
-                hash = LocalitySensitiveHashing.generateHashes(feature.getDoubleHistogram());
+                hash = LocalitySensitiveHashing.generateHashes(feature.getFeatureVector());
             }
             String hashFieldName = luceneFieldName + "." + ImageMapper.HASH + "." + hashEnum.name();
 
