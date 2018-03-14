@@ -122,6 +122,33 @@ curl -XPOST 'localhost:9200/test/test/_search' -d '{
 `routing` a custom routing value to be used when retrieving the external image doc.  **Optional**
 
 
+### ImageQueryBuilder
+```java
+byte[] bytes;
+try (BytesStreamOutput os = new BytesStreamOutput()) {
+    ImageIO.write(ImageIO.read(file), formatName, os);
+    bytes = os.bytes().toBytes();
+}
+
+ImageQueryBuilder query = new ImageQueryBuilder("img");  //image field
+query.image(bytes);
+query.feature(feature);
+query.hash(hash);
+query.boost(boost);
+query.limit(limit);
+query.lookupIndex(INDEX);
+query.lookupType(TYPE);
+query.lookupId(itemId);	
+query.lookupPath(path);
+query.lookupRouting(routing);
+
+SearchRequestBuilder queryBuilder = searchClient.prepareSearch(INDEX).setTypes(TYPE)
+    .setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
+    .setQuery(query)
+    .setFrom(from)
+    .setSize(size);
+```
+
 ### Metadata
 Metadata are extracted using [metadata-extractor](https://code.google.com/p/metadata-extractor/). See [SampleOutput](https://code.google.com/p/metadata-extractor/wiki/SampleOutput) for some examples of metadata.
 
@@ -154,6 +181,10 @@ See [Large image data sets with LIRE ?some new numbers](http://www.semanticmetad
 | index.image.ignore_metadata_error| ignore errors happened during extract metadata from image | True |
 
 ## ChangeLog
+
+#### 2.3.1.0 (2018-03-12)
+
+- upgrade to 2.3.1.0
 
 #### 1.2.0 (2014-03-20)
 
