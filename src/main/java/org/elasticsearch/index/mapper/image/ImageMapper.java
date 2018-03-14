@@ -12,6 +12,7 @@ import net.semanticmetadata.lire.indexers.hashing.BitSampling;
 import net.semanticmetadata.lire.indexers.hashing.LocalitySensitiveHashing;
 import net.semanticmetadata.lire.utils.ImageUtils;
 import net.semanticmetadata.lire.utils.SerializationUtils;
+import org.apache.lucene.analysis.core.WhitespaceAnalyzer;
 import org.apache.lucene.document.BinaryDocValuesField;
 import org.apache.lucene.document.Field;
 import org.apache.lucene.index.IndexOptions;
@@ -27,6 +28,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.XContentBuilder;
 import org.elasticsearch.common.xcontent.XContentParser;
+import org.elasticsearch.index.analysis.AnalyzerScope;
+import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.mapper.*;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -112,6 +115,8 @@ public class ImageMapper extends FieldMapper {
 
         private ContentPath.Type pathType = Defaults.PATH_TYPE;
 
+        private NamedAnalyzer analyzer = new NamedAnalyzer("whitespace", AnalyzerScope.INDEX, new WhitespaceAnalyzer(), 100);
+
         private ThreadPool threadPool;
 
         private Map<FeatureEnum, Map<String, Object>> features = new HashMap<>();
@@ -158,7 +163,7 @@ public class ImageMapper extends FieldMapper {
                     List<String> hashes = (List<String>) featureMap.get(HASH);
                     for (String h : hashes) {
                         String hashFieldName = featureName + "." + HASH + "." + h;
-                        hashMappers.put(hashFieldName, stringField(hashFieldName).store(true).includeInAll(false).index(true).build(context));
+                        hashMappers.put(hashFieldName, stringField(hashFieldName).store(true).includeInAll(false).index(true).indexAnalyzer(analyzer).build(context));
                     }
                 }
             }
