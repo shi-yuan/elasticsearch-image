@@ -8,7 +8,7 @@ It adds an `image` field type and an `image` query
 
 See [http://demo.elasticsearch-image.com](http://demo.elasticsearch-image.com) for a demo of the plugin
 
-In order to install the plugin, simply run: `bin/plugin -install com.github.shi-yuan/elasticsearch-image/2.3.1.0`.
+In order to install the plugin, simply run: `bin/plugin install https://github.com/shi-yuan/elasticsearch-image/releases/download/v2.3.1/elasticsearch-image-2.3.1.0.zip`.
 
 |     Image Plugin          |  elasticsearch    | Release date |
 |---------------------------|-------------------|:------------:|
